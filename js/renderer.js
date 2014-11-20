@@ -48,7 +48,7 @@ function initGLSL(shaders) {
 "    uniform vec3 uLightingDirection;\n" +
 "    uniform vec3 uDirectionalColor;\n" +
 "\n" +
-// "    uniform bool uUseLighting;\n" +
+"    uniform bool uUseLighting;\n" +
 "\n" +
 "    varying vec2 vTextureCoord;\n" +
 "    varying vec3 vLightWeighting;\n" +
@@ -57,13 +57,13 @@ function initGLSL(shaders) {
 "        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);\n" +
 "        vTextureCoord = aTextureCoord;\n" +
 "\n" +
-// "        if (!uUseLighting) {\n" +
-// "            vLightWeighting = vec3(1.0, 1.0, 1.0);\n" +
-// "        } else {\n" +
+"        if (!uUseLighting) {\n" +
+"            vLightWeighting = vec3(1.0, 1.0, 1.0);\n" +
+"        } else {\n" +
 "            vec3 transformedNormal = uNMatrix * aVertexNormal;\n" +
 "            float directionalLightWeighting = max(dot(transformedNormal, uLightingDirection), 0.0);\n" +
 "            vLightWeighting = uAmbientColor + uDirectionalColor * directionalLightWeighting;\n" +
-// "        }\n" +
+"        }\n" +
 "    }\n";
 
     return shaders;
@@ -116,10 +116,12 @@ function linkShaders(gl, shaders) {
     shaders.program.mvMatrixUniform = gl.getUniformLocation(shaders.program, "uMVMatrix");
     shaders.program.nMatrixUniform = gl.getUniformLocation(shaders.program, "uNMatrix");
     shaders.program.samplerUniform = gl.getUniformLocation(shaders.program, "uSampler");
-    // shaders.program.useLightingUniform = gl.getUniformLocation(shaders.program, "uUseLighting");
+    shaders.program.useLightingUniform = gl.getUniformLocation(shaders.program, "uUseLighting");
     shaders.program.ambientColorUniform = gl.getUniformLocation(shaders.program, "uAmbientColor");
     shaders.program.lightingDirectionUniform = gl.getUniformLocation(shaders.program, "uLightingDirection");
     shaders.program.directionalColorUniform = gl.getUniformLocation(shaders.program, "uDirectionalColor");
+
+    console.log("shaders initialized");
 }
 
 function handleLoadedTexture(gl, texture) {
@@ -145,7 +147,12 @@ function initTexture(gl, texture, name) {
 function initTextures(gl, textures) {
     textures.store = {};
 
-    var filenames = [ "sunmap.jpg", "earthmap1k.jpg", "moon.gif" ];
+    var filenames = [
+        // "ringsRGBA.png",
+        "sunmap.jpg", "earthmap1k.jpg", "moon.gif", "jupitermap.jpg",
+        "marsmap1k.jpg", "mercurymap.jpg", "neptunemap.jpg",
+        "saturnmap.jpg", "uranusmap.jpg", "venusmap.jpg"
+    ];
 
     for (var i in filenames) {
         var name = filenames[i];
@@ -308,7 +315,7 @@ function Renderer() {
         if (rdr.mvMatrixStack.length < 1) {
             throw "Invalid pop operation...";
         }
-        rdr.mvMatrix = mvMatrixStack.pop();
+        rdr.mvMatrix = rdr.mvMatrixStack.pop();
     };
 
     rdr.setMatrixUniforms = function () {
@@ -324,30 +331,6 @@ function Renderer() {
     rdr.spheres = [];
     rdr.prepared = false;
 
-    rdr.updateSphere = function (body, sphere) {
-        // position in world space
-        sphere.x = body.xPos;
-        sphere.y = body.yPos;
-        sphere.z = body.zPos;
-
-        // rotation matrix
-        var deltaX = body.diffX();
-        var deltaY = body.diffY();
-        var newRotationMatrix = mat4.create();
-        mat4.identity(newRotationMatrix);
-        mat4.rotate(newRotationMatrix, degToRad(deltaX / 10), [0, 1, 0]);
-        mat4.rotate(newRotationMatrix, degToRad(deltaY / 10), [1, 0, 0]);
-        mat4.multiply(newRotationMatrix, sphere.rotationMatrix, sphereRotationMatrix);
-
-        // buffers
-    };
-    rdr.updateSystem = function (bodies) {
-        // first time running this function?
-        if (!rdr.prepared) {
-            rdr.prepareSystem(bodies);
-        }
-    };
-
     rdr.prepareSphere = function (body) {
         var sphere = {};
 
@@ -356,18 +339,12 @@ function Renderer() {
         sphere.texture = body._texture;
 
         // attr
-        sphere.x = body.xPos;
-        sphere.y = body.yPos;
-        sphere.z = body.zPos;
-        sphere.radius = body.radius;
-
-        // rotation
-        sphere.rotationMatrix = mat4.create();
-        mat4.identity(sphere.rotationMatrix);
+        var radius = body._radius;
 
         // buffers
-        var latitudeBands = 30;
-        var longitudeBands = 30;
+        var fidelity = Math.floor(radius) + 2 * 10;
+        var latitudeBands = fidelity; // 60;
+        var longitudeBands = fidelity; // 60;
 
         var vertexPositionData = [];
         var normalData = [];
@@ -394,9 +371,9 @@ function Renderer() {
                 normalData.push(z);
                 textureCoordData.push(u);
                 textureCoordData.push(v);
-                vertexPositionData.push(sphere.radius * x);
-                vertexPositionData.push(sphere.radius * y);
-                vertexPositionData.push(sphere.radius * z);
+                vertexPositionData.push(radius * x);
+                vertexPositionData.push(radius * y);
+                vertexPositionData.push(radius * z);
             }
         }
 
@@ -443,27 +420,31 @@ function Renderer() {
         rdr.gl.bindBuffer(rdr.gl.ELEMENT_ARRAY_BUFFER, sphere.vertexIndexBuffer);
         rdr.gl.bufferData(rdr.gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexData), rdr.gl.STATIC_DRAW);
         sphere.vertexIndexBuffer.itemSize = 1;
-        sphere.vertexIndexBuffer.numItems = indexData;
+        sphere.vertexIndexBuffer.numItems = indexData.length;
 
         // push prepared sphere into array
         rdr.spheres.push(sphere);
     };
+
     rdr.prepareSystem = function (bodies) {
         for (var i in bodies) {
             rdr.prepareSphere(bodies[i]);
-
             if (bodies[i]._satellites) {
                 rdr.prepareSystem(bodies[i]._satellites);
             }
         }
-    };
+    }
 
-    // actual rendering of spheres
     rdr.drawSphere = function (sphere) {
-        var texture = rdr.lookupTexture(sphere.texture);
+        rdr.mvPushMatrix();
+
+        lighting = true;
+        rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
+        mat4.rotate(rdr.mvMatrix, degToRad(sphere.rotation), [0, 1, 0]);
+        mat4.translate(rdr.mvMatrix, [sphere.orb_distance, 0, 0]);
 
         rdr.gl.activeTexture(rdr.gl.TEXTURE0);
-        rdr.gl.bindTexture(rdr.gl.TEXTURE_2D, texture);
+        rdr.gl.bindTexture(rdr.gl.TEXTURE_2D, rdr.lookupTexture(sphere.texture));
         rdr.gl.uniform1i(rdr.shaders.program.samplerUniform, 0);
 
         rdr.gl.bindBuffer(rdr.gl.ARRAY_BUFFER, sphere.vertexPositionBuffer);
@@ -478,36 +459,86 @@ function Renderer() {
         rdr.gl.bindBuffer(rdr.gl.ELEMENT_ARRAY_BUFFER, sphere.vertexIndexBuffer);
         rdr.setMatrixUniforms();
         rdr.gl.drawElements(rdr.gl.TRIANGLES, sphere.vertexIndexBuffer.numItems, rdr.gl.UNSIGNED_SHORT, 0);
+        rdr.mvPopMatrix();
     };
-    rdr.drawSystem = function () {
-        for (var i in rdr.spheres) {
-            console.log(rdr.spheres[i].name);
-            rdr.drawSphere(rdr.spheres[i]);
+
+    /*
+    rdr.drawSystem = function (bodies) {
+        for (var i = 0; i < bodies.length; ++i) {
+            rdr.mvPushMatrix();
+            rdr.drawSpheres(bodies[i]);
+            if (bodies[i].satellites) {
+                rdr.drawSystem(bodies[i].satellites);
+            }
+            rdr.mvPopMatrix();
         }
     };
+    */
+
     rdr.drawScene = function () {
+        rdr.gl.viewportWidth = rdr.canvas.width; //= window.innerWidth;
+        rdr.gl.viewportHeight = rdr.canvas.width; //= window.innerHeight;
+
         rdr.gl.viewport(0, 0, rdr.gl.viewportWidth, rdr.gl.viewportHeight);
         rdr.gl.clear(rdr.gl.COLOR_BUFFER_BIT | rdr.gl.DEPTH_BUFFER_BIT);
 
         mat4.perspective(45, rdr.gl.viewportWidth / rdr.gl.viewportHeight, 0.1, 100.0, rdr.pMatrix);
-        mat4.identity(rdr.mvMatrix);
 
+        var lighting = false;
+
+        rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
+
+        /*
+        if (lighting) {
+            // ambient light - low
+            rdr.gl.uniform3f(rdr.shaders.program.ambientColorUniform,
+                    0.1, 0.1, 0.1
+                );
+
+            // point light - at centre of sun
+            rdr.gl.uniform3f(rdr.shaders.program.pointLightingLocationUniform,
+                    0.0, 0.0, 0.0
+                );
+
+            // point light - brighter
+            rdr.gl.uniform3f(rdr.shaders.program.pointLightingColorUniform,
+                    0.9, 0.9, 0.9
+                );
+        }
+        */
+
+        mat4.identity(rdr.mvMatrix);
+        mat4.translate(rdr.mvMatrix, [0, 0, -6]);
+
+        /*
         mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.pitch), [1, 0, 0]);
         mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.yaw), [0, 1, 0]);
         mat4.translate(rdr.mvMatrix, [-rdr.camera.xPos, -rdr.camera.yPos, -rdr.camera.zPos]);
+        */
 
-        rdr.drawSystem();
-    }
+        for (var i = 0; i < rdr.spheres.length; ++i) {
+            rdr.mvPushMatrix();
+            rdr.drawSphere(rdr.spheres[i]);
+            rdr.mvPopMatrix();
+        }
+    };
 
-    rdr.render = function (bodies, elapsed) {
+    rdr.updateScene = function (elapsed) {
         rdr.controlCamera();
         rdr.updateCamera(elapsed);
-        rdr.updateSystem(bodies);
+        // rdr.moveSpheres(elapsed);
+    };
+
+    rdr.render = function (elapsed) {
         rdr.drawScene();
+        rdr.updateScene(elapsed);
     };
 
     rdr.gl.clearColor(0.0, 0.0, 0.0, 1.0);
     rdr.gl.enable(rdr.gl.DEPTH_TEST);
+
+    document.onkeydown = rdr.handleKeyDown;
+    document.onkeyup = rdr.handleKeyUp;
 
     return rdr;
 }

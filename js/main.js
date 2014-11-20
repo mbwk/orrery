@@ -2,19 +2,23 @@ function main() {
     ss = new SolarSystem();
     rdr = new Renderer();
 
+    // rdr.prepareSphere(ss.system.bodies[0]._satellites[0]);
+    rdr.prepareSystem(ss.system.bodies);
+
     var then = Date.now();
 
     var tick = function () {
+        window.requestAnimationFrame(function () {
+            tick();
+        });
         var now = Date.now();
         var elapsed = now - then;
 
-        ss.update(elapsed);
-        rdr.render(ss.system.bodies, elapsed);
+        rdr.render(elapsed);
 
         then = now;
-        requestAnimationFrame(tick());
     };
 
-    requestAnimationFrame(tick);
+    window.requestAnimationFrame(tick);
 }
 

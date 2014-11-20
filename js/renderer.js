@@ -163,7 +163,7 @@ function initTextures(gl, textures) {
 
 function initCamera(camera) {
     camera.MAX_TURNSPEED = 0.15;
-    camera.MAX_MOVESPEED = 0.009;
+    camera.MAX_MOVESPEED = 0.01;
 
     camera.pitch = 0;
     camera.pitchRate = 0;
@@ -173,13 +173,10 @@ function initCamera(camera) {
 
     camera.xPos = 0.0;
     camera.yPos = 0.0;
-    camera.zPos = -1.0;
+    camera.zPos = 100.0;
 
     camera.speed = 0;
     camera.strafe = 0;
-}
-
-function initControls(controls, camera) {
 }
 
 function Renderer() {
@@ -209,7 +206,6 @@ function Renderer() {
     rdr.controls = {};
     rdr.controls.currentlyPressedKeys = {};
     initCamera(rdr.camera);
-    initControls(rdr.controls);
 
     rdr.controls.handleKeyDown = function (event) {
         rdr.controls.currentlyPressedKeys[event.keyCode] = true;
@@ -282,7 +278,7 @@ function Renderer() {
             var pitchMult = (90 - Math.abs(rdr.camera.pitch)) / 90;
 
             rdr.camera.xPos -= Math.sin(degToRad(rdr.camera.yaw)) * (rdr.camera.speed * pitchMult) * elapsed;
-            rdr.camera.zpos -= Math.cos(degToRad(rdr.camera.yaw)) * (rdr.camera.speed * pitchMult) * elapsed;
+            rdr.camera.zPos -= Math.cos(degToRad(rdr.camera.yaw)) * (rdr.camera.speed * pitchMult) * elapsed;
 
             rdr.camera.xPos -= Math.sin(degToRad(rdr.camera.yaw + 90)) * rdr.camera.strafe * elapsed;
             rdr.camera.zPos -= Math.cos(degToRad(rdr.camera.yaw + 90)) * rdr.camera.strafe * elapsed;
@@ -293,13 +289,17 @@ function Renderer() {
         rdr.camera.yaw += rdr.camera.yawRate * elapsed;
         rdr.camera.pitch += rdr.camera.pitchRate * elapsed;
 
-        if (rdr.camera.pitch > 90.0) {
-            rdr.camera.pitch = 90.0;
-        } else if (rdr.pitch < -90.0) {
-            rdr.camera.pitch = -90.0;
+        if (rdr.camera.pitch > 89.0) {
+            rdr.camera.pitch = 89.0;
+        } else if (rdr.camera.pitch < -89.0) {
+            rdr.camera.pitch = -89.0;
         }
 
         console.log("camera x: " + rdr.camera.xPos);
+        console.log("       y: " + rdr.camera.yPos);
+        console.log("       z: " + rdr.camera.zPos);
+        console.log("   pitch: " + rdr.camera.pitch);
+        console.log("     yaw: " + rdr.camera.yaw);
     };
 
     // model-view and projection matrices
@@ -344,7 +344,7 @@ function Renderer() {
         var radius = body._radius;
 
         // buffers
-        var fidelity = Math.floor(radius) + 2 * 10;
+        var fidelity = 60 + Math.floor(radius) + 2 * 10;
         var latitudeBands = fidelity; // 60;
         var longitudeBands = fidelity; // 60;
 

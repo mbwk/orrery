@@ -35,7 +35,7 @@ function SolarSystem() {
     ss.system.bodies = [
         new Body("Sun", "sunmap.jpg", 10, 24, 0, 4, [
                 new Body("Earth", "earthmap1k.jpg", 4, 24, 1, 4, [
-                    new Body("Moon", "moon.gif", 24, 1, 4, null)
+                    new Body("Moon", "moon.gif", 2, 1, 4, null)
                 ])
         ])
     ];

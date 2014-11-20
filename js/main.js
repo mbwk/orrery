@@ -3,7 +3,7 @@ function main() {
     rdr = new Renderer();
 
     // rdr.prepareSphere(ss.system.bodies[0]._satellites[0]);
-    rdr.prepareSystem(ss.system.bodies);
+    rdr.prepareSystem(ss.system.bodies, rdr.spheres);
 
     var then = Date.now();
 

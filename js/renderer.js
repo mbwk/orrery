@@ -294,12 +294,6 @@ function Renderer() {
         } else if (rdr.camera.pitch < -89.0) {
             rdr.camera.pitch = -89.0;
         }
-
-        console.log("camera x: " + rdr.camera.xPos);
-        console.log("       y: " + rdr.camera.yPos);
-        console.log("       z: " + rdr.camera.zPos);
-        console.log("   pitch: " + rdr.camera.pitch);
-        console.log("     yaw: " + rdr.camera.yaw);
     };
 
     // model-view and projection matrices
@@ -333,8 +327,8 @@ function Renderer() {
     rdr.spheres = [];
     rdr.prepared = false;
 
-    rdr.prepareSphere = function (body) {
-        var sphere = {};
+    rdr.prepareSphere = function (body, sphere) {
+        // var sphere = {};
 
         // texture
         sphere.name = body._name;
@@ -425,17 +419,45 @@ function Renderer() {
         sphere.vertexIndexBuffer.numItems = indexData.length;
 
         // push prepared sphere into array
-        rdr.spheres.push(sphere);
+        // rdr.spheres.push(sphere);
+        // satellites
+        sphere.satellites = [];
     };
 
-    rdr.prepareSystem = function (bodies) {
+    /*
+    rdr.prepareSun = function (body) {
+        var sun = {};
+        rdr.prepareSphere(body, sun);
+        rdr.spheres.push(sun);
+        for (var i = 0; i < body._satellites.length; ++i) { 
+            rdr.prepareSatellite(body._satellites[i], sun);
+        }
+    };
+    */
+
+    // new
+    rdr.prepareSystem = function (bodies, system) {
         for (var i in bodies) {
-            rdr.prepareSphere(bodies[i]);
+            var sphere = {}
+            rdr.prepareSphere(bodies[0], sphere);
+            system.push(sphere);
+            if (bodies[i]._satellites) {
+                rdr.prepareSystem(bodies[i]._satellites, sphere.satellites);
+            }
+        }
+    }
+
+    // old
+    /*
+    rdr.prepareSystem = function (bodies, system) {
+        for (var i in bodies) {
+            rdr.prepareSphere(bodies[0]);
             if (bodies[i]._satellites) {
                 rdr.prepareSystem(bodies[i]._satellites);
             }
         }
     }
+    */
 
     rdr.drawSphere = function (sphere) {
         rdr.mvPushMatrix();
@@ -444,7 +466,7 @@ function Renderer() {
         var lighting = true;
         rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
         mat4.rotate(rdr.mvMatrix, degToRad(sphere.rotation), [0, 1, 0]);
-        mat4.translate(rdr.mvMatrix, [sphere.orb_distance, 0, 0]);
+        mat4.translate(rdr.mvMatrix, sphere.orb_distance, 0, 0]);
         */
 
         rdr.gl.activeTexture(rdr.gl.TEXTURE0);
@@ -466,18 +488,18 @@ function Renderer() {
         rdr.mvPopMatrix();
     };
 
-    /*
-    rdr.drawSystem = function (bodies) {
-        for (var i = 0; i < bodies.length; ++i) {
+    
+    rdr.drawSystem = function (system) {
+        for (var i = 0; i < system.length; ++i) {
             rdr.mvPushMatrix();
-            rdr.drawSpheres(bodies[i]);
-            if (bodies[i].satellites) {
-                rdr.drawSystem(bodies[i].satellites);
+            rdr.drawSphere(system[i]);
+            if (system[i].satellites) {
+                rdr.drawSystem(system[i].satellites);
             }
             rdr.mvPopMatrix();
         }
     };
-    */
+    
 
     rdr.drawScene = function () {
         rdr.gl.viewportWidth = rdr.canvas.width; //= window.innerWidth;
@@ -521,7 +543,8 @@ function Renderer() {
         
 
         for (var i = 0; i < rdr.spheres.length; ++i) {
-            rdr.drawSphere(rdr.spheres[i]);
+            // rdr.drawSphere(rdr.spheres[i]);
+            rdr.drawSystem(rdr.spheres);
         }
     };
 

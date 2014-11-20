@@ -33,7 +33,7 @@ function SolarSystem() {
     ];
 
     ss.update = function(elapsed) {
-        //
+        console.log("updating solar system...");
     };
 
     return ss;

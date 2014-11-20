@@ -352,6 +352,7 @@ function Renderer() {
         var sphere = {};
 
         // texture
+        sphere.name = body._name;
         sphere.texture = body._texture;
 
         // attr
@@ -439,8 +440,8 @@ function Renderer() {
         sphere.vertexPositionBuffer.numItems = vertexPositionData.length / 3;
 
         // index
-        rdr.gl.bindBuffer(rdr.gl.ARRAY_BUFFER, sphere.vertexIndexBuffer);
-        rdr.gl.bufferData(rdr.gl.ARRAY_BUFFER, new Uint16Array(indexData), rdr.gl.STATIC_DRAW);
+        rdr.gl.bindBuffer(rdr.gl.ELEMENT_ARRAY_BUFFER, sphere.vertexIndexBuffer);
+        rdr.gl.bufferData(rdr.gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexData), rdr.gl.STATIC_DRAW);
         sphere.vertexIndexBuffer.itemSize = 1;
         sphere.vertexIndexBuffer.numItems = indexData;
 
@@ -480,6 +481,7 @@ function Renderer() {
     };
     rdr.drawSystem = function () {
         for (var i in rdr.spheres) {
+            console.log(rdr.spheres[i].name);
             rdr.drawSphere(rdr.spheres[i]);
         }
     };

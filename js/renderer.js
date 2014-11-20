@@ -278,13 +278,13 @@ function Renderer() {
     };
 
     rdr.updateCamera = function (elapsed) {
-        if (rdr.camera.speed != 0) {
+        if (rdr.camera.speed != 0 || rdr.camera.strafe != 0) {
             var pitchMult = (90 - Math.abs(rdr.camera.pitch)) / 90;
 
             rdr.camera.xPos -= Math.sin(degToRad(rdr.camera.yaw)) * (rdr.camera.speed * pitchMult) * elapsed;
             rdr.camera.zpos -= Math.cos(degToRad(rdr.camera.yaw)) * (rdr.camera.speed * pitchMult) * elapsed;
 
-            rdr.camera.xPos -= Math.sin(degToRad(rdr,camera.yaw + 90)) * rdr.camera.strafe * elapsed;
+            rdr.camera.xPos -= Math.sin(degToRad(rdr.camera.yaw + 90)) * rdr.camera.strafe * elapsed;
             rdr.camera.zPos -= Math.cos(degToRad(rdr.camera.yaw + 90)) * rdr.camera.strafe * elapsed;
 
             rdr.camera.yPos += Math.sin(degToRad(rdr.camera.pitch)) * rdr.camera.speed * elapsed;
@@ -298,6 +298,8 @@ function Renderer() {
         } else if (rdr.pitch < -90.0) {
             rdr.camera.pitch = -90.0;
         }
+
+        console.log("camera x: " + rdr.camera.xPos);
     };
 
     // model-view and projection matrices
@@ -438,10 +440,12 @@ function Renderer() {
     rdr.drawSphere = function (sphere) {
         rdr.mvPushMatrix();
 
-        lighting = true;
+        /*
+        var lighting = true;
         rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
         mat4.rotate(rdr.mvMatrix, degToRad(sphere.rotation), [0, 1, 0]);
         mat4.translate(rdr.mvMatrix, [sphere.orb_distance, 0, 0]);
+        */
 
         rdr.gl.activeTexture(rdr.gl.TEXTURE0);
         rdr.gl.bindTexture(rdr.gl.TEXTURE_2D, rdr.lookupTexture(sphere.texture));
@@ -508,18 +512,16 @@ function Renderer() {
         */
 
         mat4.identity(rdr.mvMatrix);
-        mat4.translate(rdr.mvMatrix, [0, 0, -6]);
+        // mat4.translate(rdr.mvMatrix, [0, 0, -6]);
 
-        /*
+        
         mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.pitch), [1, 0, 0]);
         mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.yaw), [0, 1, 0]);
         mat4.translate(rdr.mvMatrix, [-rdr.camera.xPos, -rdr.camera.yPos, -rdr.camera.zPos]);
-        */
+        
 
         for (var i = 0; i < rdr.spheres.length; ++i) {
-            rdr.mvPushMatrix();
             rdr.drawSphere(rdr.spheres[i]);
-            rdr.mvPopMatrix();
         }
     };
 
@@ -537,8 +539,8 @@ function Renderer() {
     rdr.gl.clearColor(0.0, 0.0, 0.0, 1.0);
     rdr.gl.enable(rdr.gl.DEPTH_TEST);
 
-    document.onkeydown = rdr.handleKeyDown;
-    document.onkeyup = rdr.handleKeyUp;
+    document.onkeydown = rdr.controls.handleKeyDown;
+    document.onkeyup = rdr.controls.handleKeyUp;
 
     return rdr;
 }

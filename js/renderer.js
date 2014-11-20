@@ -16,7 +16,7 @@ function initGL(canvas) {
     return gl;
 }
 
-function deg2Rad(degrees) {
+function degToRad(degrees) {
     return degrees * Math.PI / 180;
 }
 
@@ -155,6 +155,9 @@ function initTextures(gl, textures) {
 }
 
 function initCamera(camera) {
+    camera.MAX_TURNSPEED = 0.15;
+    camera.MAX_MOVESPEED = 0.009;
+
     camera.pitch = 0;
     camera.pitchRate = 0;
 
@@ -186,7 +189,7 @@ function Renderer() {
     rdr.textures = {};
     initTextures(rdr.gl, rdr.textures);
 
-    rdr.lookupTexture = function (texturename) {
+    rdr.lookupTexture = function (texture_name) {
         if (rdr.textures.store[texture_name]) {
             return rdr.textures.store[texture_name];
         } else {
@@ -203,17 +206,69 @@ function Renderer() {
 
     rdr.controls.handleKeyDown = function (event) {
         rdr.controls.currentlyPressedKeys[event.keyCode] = true;
-    }
+    };
 
     rdr.controls.handleKeyUp = function (event) {
         rdr.controls.currentlyPressedKeys[event.keyCode] = false;
-    }
+    };
 
     rdr.controlCamera = function () {
-        if (rdr.controls.currentlyPressedKeys) {
-            // tbc
+        // pitch controls
+        if (rdr.controls.currentlyPressedKeys[33]) { // Page Up
+            rdr.camera.pitchRate = rdr.camera.MAX_TURNSPEED;
+        } else if (rdr.controls.currentlyPressedKeys[34]) { // Page Down
+            rdr.camera.pitchRate = -1 * rdr.camera.MAX_TURNSPEED;
+        } else {
+            rdr.camera.pitchRate = 0;
         }
-    }
+
+        // yaw controls
+        if (rdr.controls.currentlyPressedKeys[81]) {
+            rdr.camera.yawRate = rdr.camera.MAX_TURNSPEED;
+        } else if (rdr.controls.currentlyPressedKeys[69]) {
+            rdr.camera.yawRate = -1 * rdr.camera.MAX_TURNSPEED;
+        } else {
+            rdr.camera.yawRate = 0;
+        }
+
+        // forward and backward movement
+        if (rdr.controls.currentlyPressedKeys[38] || rdr.controls.currentlyPressedKeys[87]) { // Up arrow or 'W' keys
+            if (rdr.camera.speed < rdr.camera.MAX_MOVESPEED) {
+                rdr.camera.speed += 0.001;
+            }
+        } else if (rdr.controls.currentlyPressedKeys[40] || rdr.controls.currentlyPressedKeys[83]) { // Down arrow or 'S' keys
+            if (rdr.camera.speed > -1 * rdr.camera.MAX_MOVESPEED) {
+                rdr.camera.speed -= 0.001;
+            }
+        } else {
+            if (rdr.camera.speed > 0) {
+                rdr.camera.speed -= 0.001;
+            } else if (rdr.camera.speed < 0) {
+                rdr.camera.speed += 0.001;
+            } else if (rdr.camera.speed < 0.001 && rdr.camera.speed > -0.001) {
+                rdr.camera.speed = 0;
+            }
+        }
+
+        // strafe movement
+        if (rdr.controls.currentlyPressedKeys[37] || rdr.controls.currentlyPressedKeys[65]) { // Left arrow or 'A' keys
+            if (rdr.camera.strafe < rdr.camera.MAX_MOVESPEED) {
+                rdr.camera.strafe += 0.001;
+            }
+        } else if (rdr.controls.currentlyPressedKeys[39] || rdr.controls.currentlyPressedKeys[68]) { // Right arrow or 'D' keys
+            if (rdr.camera.strafe > -1 * rdr.camera.MAX_MOVESPEED) {
+                rdr.camera.strafe -= 0.001;
+            }
+        } else {
+            if (rdr.camera.strafe > 0) {
+                rdr.camera.strafe -= 0.001;
+            } else if (rdr.camera.strafe < 0) {
+                rdr.camera.strafe += 0.001;
+            } else if (rdr.camera.strafe < 0.001 && rdr.camera.strafe > -0.001) {
+                rdr.camera.strafe = 0;
+            }
+        }
+    };
 
     rdr.updateCamera = function (elapsed) {
         if (rdr.camera.speed != 0) {
@@ -236,13 +291,13 @@ function Renderer() {
         } else if (rdr.pitch < -90.0) {
             rdr.camera.pitch = -90.0;
         }
-    }
+    };
 
     // model-view and projection matrices
     rdr.mvMatrix = mat4.create();
     rdr.mvMatrixStack = [];
     rdr.pMatrix = mat4.create();
-
+    
     rdr.mvPushMatrix = function () {
         var copy = mat4.create();
         mat4.set(rdr.mvMatrix, copy);
@@ -263,10 +318,11 @@ function Renderer() {
         var normalMatrix = mat3.create();
         mat4.toInverseMat3(rdr.mvMatrix, normalMatrix);
         mat3.transpose(normalMatrix);
-        gl.uniformMatrix3fv(rdr.shaders.program.nMatrixUniform, false, normalMatrix);
+        rdr.gl.uniformMatrix3fv(rdr.shaders.program.nMatrixUniform, false, normalMatrix);
     };
 
     rdr.spheres = [];
+    rdr.prepared = false;
 
     rdr.updateSphere = function (body, sphere) {
         // position in world space
@@ -285,7 +341,11 @@ function Renderer() {
 
         // buffers
     };
-    rdr.updateSystem = function (model) {
+    rdr.updateSystem = function (bodies) {
+        // first time running this function?
+        if (!rdr.prepared) {
+            rdr.prepareSystem(bodies);
+        }
     };
 
     rdr.prepareSphere = function (body) {
@@ -308,11 +368,6 @@ function Renderer() {
         var latitudeBands = 30;
         var longitudeBands = 30;
 
-        sphere.vertexPositionBuffer;
-        sphere.vertexNormalBuffer;
-        sphere.vertexTextureCoordBuffer;
-        sphere.vertexIndexBuffer;
-
         var vertexPositionData = [];
         var normalData = [];
         var textureCoordData = [];
@@ -323,7 +378,7 @@ function Renderer() {
             var cosTheta = Math.cos(theta);
 
             for (var lonNumber = 0; lonNumber <= longitudeBands; ++lonNumber) {
-                var phi = longNumber * 2 * Math.PI / longitudeBands;
+                var phi = lonNumber * 2 * Math.PI / longitudeBands;
                 var sinPhi = Math.sin(phi);
                 var cosPhi = Math.cos(phi);
 
@@ -360,9 +415,46 @@ function Renderer() {
             }
         }
 
+        sphere.vertexNormalBuffer = rdr.gl.createBuffer();
+        sphere.vertexTextureCoordBuffer = rdr.gl.createBuffer();
+        sphere.vertexPositionBuffer = rdr.gl.createBuffer();
+        sphere.vertexIndexBuffer = rdr.gl.createBuffer();
+
+        // normal
+        rdr.gl.bindBuffer(rdr.gl.ARRAY_BUFFER, sphere.vertexNormalBuffer);
+        rdr.gl.bufferData(rdr.gl.ARRAY_BUFFER, new Float32Array(normalData), rdr.gl.STATIC_DRAW);
+        sphere.vertexNormalBuffer.itemSize = 3;
+        sphere.vertexNormalBuffer.numItems = normalData.length / 3;
+
+        // texture
+        rdr.gl.bindBuffer(rdr.gl.ARRAY_BUFFER, sphere.vertexTextureCoordBuffer);
+        rdr.gl.bufferData(rdr.gl.ARRAY_BUFFER, new Float32Array(textureCoordData), rdr.gl.STATIC_DRAW);
+        sphere.vertexTextureCoordBuffer.itemSize = 2;
+        sphere.vertexTextureCoordBuffer.numItems = textureCoordData.length / 2;
+
+        // position
+        rdr.gl.bindBuffer(rdr.gl.ARRAY_BUFFER, sphere.vertexPositionBuffer);
+        rdr.gl.bufferData(rdr.gl.ARRAY_BUFFER, new Float32Array(vertexPositionData), rdr.gl.STATIC_DRAW);
+        sphere.vertexPositionBuffer.itemSize = 3;
+        sphere.vertexPositionBuffer.numItems = vertexPositionData.length / 3;
+
+        // index
+        rdr.gl.bindBuffer(rdr.gl.ARRAY_BUFFER, sphere.vertexIndexBuffer);
+        rdr.gl.bufferData(rdr.gl.ARRAY_BUFFER, new Uint16Array(indexData), rdr.gl.STATIC_DRAW);
+        sphere.vertexIndexBuffer.itemSize = 1;
+        sphere.vertexIndexBuffer.numItems = indexData;
+
+        // push prepared sphere into array
         rdr.spheres.push(sphere);
     };
-    rdr.prepareSystem = function (model) {
+    rdr.prepareSystem = function (bodies) {
+        for (var i in bodies) {
+            rdr.prepareSphere(bodies[i]);
+
+            if (bodies[i]._satellites) {
+                rdr.prepareSystem(bodies[i]._satellites);
+            }
+        }
     };
 
     // actual rendering of spheres
@@ -374,17 +466,17 @@ function Renderer() {
         rdr.gl.uniform1i(rdr.shaders.program.samplerUniform, 0);
 
         rdr.gl.bindBuffer(rdr.gl.ARRAY_BUFFER, sphere.vertexPositionBuffer);
-        rdr.gl.vertexAttribPointer(rdr.shaders.program.vertexPositionAttribute, sphere.vertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+        rdr.gl.vertexAttribPointer(rdr.shaders.program.vertexPositionAttribute, sphere.vertexPositionBuffer.itemSize, rdr.gl.FLOAT, false, 0, 0);
 
         rdr.gl.bindBuffer(rdr.gl.ARRAY_BUFFER, sphere.vertexTextureCoordBuffer);
-        rdr.gl.vertexAttribPointer(rdr.shaders.program.textureCoordAttribute, sphere.vertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+        rdr.gl.vertexAttribPointer(rdr.shaders.program.textureCoordAttribute, sphere.vertexTextureCoordBuffer.itemSize, rdr.gl.FLOAT, false, 0, 0);
 
         rdr.gl.bindBuffer(rdr.gl.ARRAY_BUFFER, sphere.vertexNormalBuffer);
-        rdr.gl.vertexAttribPointer(rdr.shaders.program.vertexNormalAttribute, sphere.vertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+        rdr.gl.vertexAttribPointer(rdr.shaders.program.vertexNormalAttribute, sphere.vertexNormalBuffer.itemSize, rdr.gl.FLOAT, false, 0, 0);
 
         rdr.gl.bindBuffer(rdr.gl.ELEMENT_ARRAY_BUFFER, sphere.vertexIndexBuffer);
         rdr.setMatrixUniforms();
-        rdr.gl.drawElements(gl.TRIANGLES, sphere.vertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+        rdr.gl.drawElements(rdr.gl.TRIANGLES, sphere.vertexIndexBuffer.numItems, rdr.gl.UNSIGNED_SHORT, 0);
     };
     rdr.drawSystem = function () {
         for (var i in rdr.spheres) {
@@ -399,14 +491,17 @@ function Renderer() {
         mat4.identity(rdr.mvMatrix);
 
         mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.pitch), [1, 0, 0]);
-        mar4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.yaw), [0, 1, 0]);
+        mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.yaw), [0, 1, 0]);
         mat4.translate(rdr.mvMatrix, [-rdr.camera.xPos, -rdr.camera.yPos, -rdr.camera.zPos]);
 
         rdr.drawSystem();
     }
 
     rdr.render = function (bodies, elapsed) {
-        rdr.updateBuffers(bodies);
+        rdr.controlCamera();
+        rdr.updateCamera(elapsed);
+        rdr.updateSystem(bodies);
+        rdr.drawScene();
     };
 
     rdr.gl.clearColor(0.0, 0.0, 0.0, 1.0);

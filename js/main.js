@@ -8,8 +8,7 @@ function main() {
         var now = Date.now();
         var elapsed = now - then;
 
-        // ss.update(elapsed);
-        rdr.moveCamera(elapsed);
+        ss.update(elapsed);
         rdr.render(ss.system.bodies, elapsed);
 
         then = now;

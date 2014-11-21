@@ -1,28 +1,19 @@
-function Body(name, texture, radius, rot_speed, orb_speed, orb_radius, satellites) {
+function Body(
+        name, texture, radius,
+        rot_speed, orb_speed,
+        orb_radius, start_point,
+        satellites) {
     var body = {};
+    var SCALE = 10;
 
     body._name = name;
     body._texture = texture;
-    body._radius = radius;
+    body._radius = radius / SCALE;
     body._satellites = satellites;
-    body._rotSpeed = rot_speed;
-    body._orbSpeed = orb_speed;
-
-    body.xPos = 0;
-    body.yPos = 0;
-    body.zPos = 0;
-
-    body._lastXPos = -1;
-    body._lastYPos = -1;
-    body._lastZPos = -1;
-
-    body.updatePos = function (elapsed) {
-        body._lastXPos = body.xPos;
-        body._lastYPos = body.yPos;
-        body._lastZPos = body.zPos;
-
-
-    };
+    body._rotSpeed = rot_speed; // SCALE;
+    body._orbSpeed = orb_speed; // SCALE;
+    body._orbRadius = orb_radius / SCALE;
+    body._start = start_point;
 
     return body;
 }
@@ -33,15 +24,21 @@ function SolarSystem() {
     ss.system = {};
 
     ss.system.bodies = [
-        new Body("Sun", "sunmap.jpg", 10, 24, 0, 4, [
-                new Body("Earth", "earthmap1k.jpg", 4, 24, 1, 4, [
-                    new Body("Moon", "moon.gif", 2, 1, 4, null)
-                ])
+        new Body("Sun", "sunmap.jpg", 6, 20, 0, 0, 0, [
+                //      name        texture         rad   rsp  osp  orad   start
+            new Body("Mercury", "mercurymap.jpg",   1.5,    1,  12, 20,     40,
+                null),
+            new Body("Venus",   "venusmap.jpg",     2,     -40,  10, 30,     10,
+                null),
+            new Body("Earth",   "earthmap1k.jpg",   2,      300, 8, 40,     60,
+                [new Body("Moon", "moon.gif", 0.3, 1, 60, 5, 10, null)]),
+            new Body("Mars",    "marsmap1k.jpg",    1.2,    1,  6, 60,      90,
+                null),
+            new Body("Jupiter", "jupitermap.jpg",   4,      3,  6, 90,      0,
+                null)
         ])
     ];
 
-    ss.update = function(elapsed) {
-    };
-
     return ss;
 }
+

@@ -45,8 +45,11 @@ function initGLSL(shaders) {
 "\n" +
 "    uniform vec3 uAmbientColor;\n" +
 "\n" +
-"    uniform vec3 uLightingDirection;\n" +
-"    uniform vec3 uDirectionalColor;\n" +
+"    uniform vec3 uPointLightingLocation;\n" +
+"    uniform vec3 uPointLightingColor;\n" +
+//"\n" +
+//"    uniform vec3 uLightingDirection;\n" +
+//"    uniform vec3 uDirectionalColor;\n" +
 "\n" +
 "    uniform bool uUseLighting;\n" +
 "\n" +
@@ -54,15 +57,18 @@ function initGLSL(shaders) {
 "    varying vec3 vLightWeighting;\n" +
 "\n" +
 "    void main(void) {\n" +
-"        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);\n" +
+"        vec4 mvPosition = uMVMatrix * vec4(aVertexPosition, 1.0);\n" +
+"        gl_Position = uPMatrix * mvPosition;\n" +
 "        vTextureCoord = aTextureCoord;\n" +
 "\n" +
 "        if (!uUseLighting) {\n" +
 "            vLightWeighting = vec3(1.0, 1.0, 1.0);\n" +
 "        } else {\n" +
+"            vec3 lightDirection = normalize(uPointLightingLocation - mvPosition.xyz);\n" +
+"\n" +
 "            vec3 transformedNormal = uNMatrix * aVertexNormal;\n" +
-"            float directionalLightWeighting = max(dot(transformedNormal, uLightingDirection), 0.0);\n" +
-"            vLightWeighting = uAmbientColor + uDirectionalColor * directionalLightWeighting;\n" +
+"            float directionalLightWeighting = max(dot(transformedNormal, lightDirection), 0.0);\n" +
+"            vLightWeighting = uAmbientColor + uPointLightingColor * directionalLightWeighting;\n" +
 "        }\n" +
 "    }\n";
 
@@ -162,18 +168,18 @@ function initTextures(gl, textures) {
 }
 
 function initCamera(camera) {
-    camera.MAX_TURNSPEED = 0.15;
-    camera.MAX_MOVESPEED = 0.01;
+    camera.MAX_TURNSPEED = 0.05;
+    camera.MAX_MOVESPEED = 0.006;
 
-    camera.pitch = 0;
+    camera.pitch = -10;
     camera.pitchRate = 0;
 
     camera.yaw = 0;
     camera.yawRate = 0;
 
     camera.xPos = 0.0;
-    camera.yPos = 0.0;
-    camera.zPos = 100.0;
+    camera.yPos = 10.0;
+    camera.zPos = 20.0;
 
     camera.speed = 0;
     camera.strafe = 0;
@@ -335,6 +341,11 @@ function Renderer() {
         sphere.texture = body._texture;
 
         // attr
+        sphere.rotationalSpeed = body._rotSpeed;
+        sphere.rotationalAngle = 0;
+        sphere.orbitalSpeed = body._orbSpeed;
+        sphere.orbitalRadius = body._orbRadius;
+        sphere.orbitalAngle = body._start;
         var radius = body._radius;
 
         // buffers
@@ -418,28 +429,15 @@ function Renderer() {
         sphere.vertexIndexBuffer.itemSize = 1;
         sphere.vertexIndexBuffer.numItems = indexData.length;
 
-        // push prepared sphere into array
-        // rdr.spheres.push(sphere);
         // satellites
         sphere.satellites = [];
     };
-
-    /*
-    rdr.prepareSun = function (body) {
-        var sun = {};
-        rdr.prepareSphere(body, sun);
-        rdr.spheres.push(sun);
-        for (var i = 0; i < body._satellites.length; ++i) { 
-            rdr.prepareSatellite(body._satellites[i], sun);
-        }
-    };
-    */
 
     // new
     rdr.prepareSystem = function (bodies, system) {
         for (var i in bodies) {
             var sphere = {}
-            rdr.prepareSphere(bodies[0], sphere);
+            rdr.prepareSphere(bodies[i], sphere);
             system.push(sphere);
             if (bodies[i]._satellites) {
                 rdr.prepareSystem(bodies[i]._satellites, sphere.satellites);
@@ -447,27 +445,28 @@ function Renderer() {
         }
     }
 
-    // old
-    /*
-    rdr.prepareSystem = function (bodies, system) {
-        for (var i in bodies) {
-            rdr.prepareSphere(bodies[0]);
-            if (bodies[i]._satellites) {
-                rdr.prepareSystem(bodies[i]._satellites);
-            }
-        }
-    }
-    */
-
     rdr.drawSphere = function (sphere) {
-        rdr.mvPushMatrix();
+
+        var lighting = false;
 
         /*
-        var lighting = true;
-        rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
-        mat4.rotate(rdr.mvMatrix, degToRad(sphere.rotation), [0, 1, 0]);
-        mat4.translate(rdr.mvMatrix, sphere.orb_distance, 0, 0]);
+        if (sphere.name == "Sun") {
+        } else {
+            var lighting = true;
+            rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
+        }
         */
+        
+        // rotate to point in orbit, move out by orbital distance, and rotate back
+        mat4.rotate(rdr.mvMatrix, degToRad(sphere.orbitalAngle), [0, 1, 0]);
+        mat4.translate(rdr.mvMatrix, [sphere.orbitalRadius, 0, 0]);
+        mat4.rotate(rdr.mvMatrix, degToRad(sphere.orbitalAngle), [0, -1, 0]);
+
+        rdr.mvPushMatrix();
+
+        // rotate based on rotation of the sphere
+        mat4.rotate(rdr.mvMatrix, degToRad(sphere.rotationalAngle), [0, 1, 0]);
+        
 
         rdr.gl.activeTexture(rdr.gl.TEXTURE0);
         rdr.gl.bindTexture(rdr.gl.TEXTURE_2D, rdr.lookupTexture(sphere.texture));
@@ -485,11 +484,14 @@ function Renderer() {
         rdr.gl.bindBuffer(rdr.gl.ELEMENT_ARRAY_BUFFER, sphere.vertexIndexBuffer);
         rdr.setMatrixUniforms();
         rdr.gl.drawElements(rdr.gl.TRIANGLES, sphere.vertexIndexBuffer.numItems, rdr.gl.UNSIGNED_SHORT, 0);
+
+        // change back mvMatrix rotation so satellites don't get BTFO
         rdr.mvPopMatrix();
     };
 
     
     rdr.drawSystem = function (system) {
+        rdr.mvPushMatrix();
         for (var i = 0; i < system.length; ++i) {
             rdr.mvPushMatrix();
             rdr.drawSphere(system[i]);
@@ -498,6 +500,7 @@ function Renderer() {
             }
             rdr.mvPopMatrix();
         }
+        rdr.mvPopMatrix();
     };
     
 
@@ -514,7 +517,7 @@ function Renderer() {
 
         rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
 
-        /*
+        
         if (lighting) {
             // ambient light - low
             rdr.gl.uniform3f(rdr.shaders.program.ambientColorUniform,
@@ -531,7 +534,7 @@ function Renderer() {
                     0.9, 0.9, 0.9
                 );
         }
-        */
+        
 
         mat4.identity(rdr.mvMatrix);
         // mat4.translate(rdr.mvMatrix, [0, 0, -6]);
@@ -542,22 +545,32 @@ function Renderer() {
         mat4.translate(rdr.mvMatrix, [-rdr.camera.xPos, -rdr.camera.yPos, -rdr.camera.zPos]);
         
 
-        for (var i = 0; i < rdr.spheres.length; ++i) {
-            // rdr.drawSphere(rdr.spheres[i]);
-            rdr.drawSystem(rdr.spheres);
+        rdr.drawSystem(rdr.spheres);
+    };
+
+    rdr.animateSphere = function (elapsed, sphere) {
+        sphere.rotationalAngle += sphere.rotationalSpeed * elapsed / 1000;
+        sphere.orbitalAngle += sphere.orbitalSpeed * elapsed / 1000;
+    };
+
+    rdr.animateSystem = function (elapsed, system) {
+        for (var i = 0; i < system.length; ++i) {
+            rdr.animateSphere(elapsed, system[i]);
+            rdr.animateSystem(elapsed, system[i].satellites);
         }
     };
 
     rdr.updateScene = function (elapsed) {
         rdr.controlCamera();
         rdr.updateCamera(elapsed);
-        // rdr.moveSpheres(elapsed);
+        rdr.animateSystem(elapsed, rdr.spheres);
     };
 
     rdr.render = function (elapsed) {
         rdr.drawScene();
         rdr.updateScene(elapsed);
     };
+
 
     rdr.gl.clearColor(0.0, 0.0, 0.0, 1.0);
     rdr.gl.enable(rdr.gl.DEPTH_TEST);

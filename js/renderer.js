@@ -78,13 +78,18 @@ function initGLSL(shaders) {
 "    varying vec3 vTransformedNormal;\n" +
 "    varying vec4 vPosition;\n" +
 "\n" +
+"    uniform float uMaterialShininess;\n" +
+"\n" +
+"    uniform bool uShowSpecularHighlights;\n" +
 "    uniform bool uUseLighting;\n" +
 //"    uniform bool uUseTextures;\n" +
 "\n" +
 "    uniform vec3 uAmbientColor;\n" +
 "\n" +
 "    uniform vec3 uPointLightingLocation;\n" +
-"    uniform vec3 uPointLightingColor;\n" +
+//"    uniform vec3 uPointLightingColor;\n" +
+"    uniform vec3 uPointLightingSpecularColor;\n" +
+"    uniform vec3 uPointLightingDiffuseColor;\n" +
 "\n" +
 "    uniform sampler2D uSampler;\n" +
 "\n" +
@@ -94,8 +99,18 @@ function initGLSL(shaders) {
 "            lightWeighting = vec3(1.0, 1.0, 1.0);\n" +
 "        } else {\n" +
 "            vec3 lightDirection = normalize(uPointLightingLocation - vPosition.xyz);\n" +
-"            float directionalLightWeighting = max(dot(normalize(vTransformedNormal), lightDirection), 0.0);\n" +
-"            lightWeighting = uAmbientColor + uPointLightingColor * directionalLightWeighting;\n" +
+"            vec3 normal = normalize(vTransformedNormal);\n" +
+"\n" +
+"            float specularLightWeighting = 0.0;\n" +
+"            if (uShowSpecularHighlights) {\n" +
+"                vec3 eyeDirection = normalize(-vPosition.xyz);\n" +
+"                vec3 reflectionDirection = reflect(-lightDirection, normal);\n" +
+"\n" +
+"                specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess);\n" +
+"            }\n" +
+
+"            float diffuseLightWeighting = max(dot(normal, lightDirection), 0.0);\n" +
+"            lightWeighting = uAmbientColor + uPointLightingSpecularColor * specularLightWeighting + uPointLightingDiffuseColor * diffuseLightWeighting;\n" +
 "        }\n" +
 "\n" +
 "        vec4 fragmentColor;\n" +
@@ -253,12 +268,18 @@ function Renderer() {
         program.nMatrixUniform = rdr.gl.getUniformLocation(program, "uNMatrix");
 
         program.samplerUniform = rdr.gl.getUniformLocation(program, "uSampler");
+
+        program.materialShininessUniform = rdr.gl.getUniformLocation(program, "uMaterialShininess");
+        program.showSpecularHighlightsUniform = rdr.gl.getUniformLocation(program, "uShowSpecularHighlights");
+
         program.uUseTexturesUniform = rdr.gl.getUniformLocation(program, "uUseTextures");
         program.useLightingUniform = rdr.gl.getUniformLocation(program, "uUseLighting");
         program.ambientColorUniform = rdr.gl.getUniformLocation(program, "uAmbientColor");
 
         program.pointLightingLocationUniform = rdr.gl.getUniformLocation(program, "uPointLightingLocation");
-        program.pointLightingColorUniform = rdr.gl.getUniformLocation(program, "uPointLightingColor");
+        // program.pointLightingColorUniform = rdr.gl.getUniformLocation(program, "uPointLightingColor");
+        program.pointLightingSpecularColorUniform = rdr.gl.getUniformLocation(program, "uPointLightingSpecularColor");
+        program.pointLightingDiffuseColorUniform = rdr.gl.getUniformLocation(program, "uPointLightingDiffuseColor");
 
         return program;
     };
@@ -515,6 +536,8 @@ function Renderer() {
         rdr.gl.bindTexture(rdr.gl.TEXTURE_2D, rdr.lookupTexture(sphere.texture));
         rdr.gl.uniform1i(rdr.shaders.program.samplerUniform, 0);
 
+        rdr.gl.uniform1f(rdr.shaders.program.materialShininessUniform, 16.0);
+
         rdr.gl.bindBuffer(rdr.gl.ARRAY_BUFFER, sphere.vertexPositionBuffer);
         rdr.gl.vertexAttribPointer(rdr.shaders.program.vertexPositionAttribute, sphere.vertexPositionBuffer.itemSize, rdr.gl.FLOAT, false, 0, 0);
 
@@ -565,6 +588,8 @@ function Renderer() {
         mat4.translate(rdr.mvMatrix, [0, 0, -rdr.camera.zoom]);
         mat4.multiply(rdr.mvMatrix, rdr.camera.rotationMatrix);
 
+        rdr.gl.uniform1i(rdr.shaders.program.showSpecularHighlightsUniform, true);
+
         var lighting = true;
 
         rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
@@ -582,8 +607,12 @@ function Renderer() {
                 );
 
             // point light - brighter
-            rdr.gl.uniform3f(rdr.shaders.program.pointLightingColorUniform,
-                    0.9, 0.9, 0.9
+            rdr.gl.uniform3f(rdr.shaders.program.pointLightingSpecularColorUniform,
+                    0.8, 0.8, 0.8
+                );
+            // point light - brighter
+            rdr.gl.uniform3f(rdr.shaders.program.pointLightingDiffuseColorUniform,
+                    0.8, 0.8, 0.8
                 );
         }
 

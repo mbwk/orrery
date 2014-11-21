@@ -124,8 +124,8 @@ function linkShaders(gl, shaders) {
     shaders.program.samplerUniform = gl.getUniformLocation(shaders.program, "uSampler");
     shaders.program.useLightingUniform = gl.getUniformLocation(shaders.program, "uUseLighting");
     shaders.program.ambientColorUniform = gl.getUniformLocation(shaders.program, "uAmbientColor");
-    shaders.program.lightingDirectionUniform = gl.getUniformLocation(shaders.program, "uLightingDirection");
-    shaders.program.directionalColorUniform = gl.getUniformLocation(shaders.program, "uDirectionalColor");
+    shaders.program.pointLightingLocationUniform = gl.getUniformLocation(shaders.program, "uPointLightingLocation");
+    shaders.program.pointLightingColorUniform = gl.getUniformLocation(shaders.program, "uPointLightingColor");
 
     console.log("shaders initialized");
 }
@@ -171,15 +171,15 @@ function initCamera(camera) {
     camera.MAX_TURNSPEED = 0.05;
     camera.MAX_MOVESPEED = 0.006;
 
-    camera.pitch = -10;
+    camera.pitch = 0;
     camera.pitchRate = 0;
 
     camera.yaw = 0;
     camera.yawRate = 0;
 
     camera.xPos = 0.0;
-    camera.yPos = 10.0;
-    camera.zPos = 20.0;
+    camera.yPos = 0.0;
+    camera.zPos = 10.0;
 
     camera.speed = 0;
     camera.strafe = 0;
@@ -334,8 +334,6 @@ function Renderer() {
     rdr.prepared = false;
 
     rdr.prepareSphere = function (body, sphere) {
-        // var sphere = {};
-
         // texture
         sphere.name = body._name;
         sphere.texture = body._texture;
@@ -449,13 +447,12 @@ function Renderer() {
 
         var lighting = false;
 
-        /*
         if (sphere.name == "Sun") {
+            var lighting = false;
         } else {
             var lighting = true;
-            rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
         }
-        */
+        rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
         
         // rotate to point in orbit, move out by orbital distance, and rotate back
         mat4.rotate(rdr.mvMatrix, degToRad(sphere.orbitalAngle), [0, 1, 0]);
@@ -485,7 +482,7 @@ function Renderer() {
         rdr.setMatrixUniforms();
         rdr.gl.drawElements(rdr.gl.TRIANGLES, sphere.vertexIndexBuffer.numItems, rdr.gl.UNSIGNED_SHORT, 0);
 
-        // change back mvMatrix rotation so satellites don't get BTFO
+        // change back mvMatrix rotation so satellites control their own orbits
         rdr.mvPopMatrix();
     };
 
@@ -502,6 +499,19 @@ function Renderer() {
         }
         rdr.mvPopMatrix();
     };
+
+    rdr.calculateRelativeSunXYZ = function () {
+        var camx = rdr.camera.xPos;
+        var camy = rdr.camera.yPos;
+        var camz = rdr.camera.zPos;
+        var camp = rdr.camera.pitch;
+        var camy = rdr.camera.yaw;
+
+        var x = 0;
+        var y = 0;
+        var z = 0;
+    };
+    
     
 
     rdr.drawScene = function () {
@@ -513,9 +523,16 @@ function Renderer() {
 
         mat4.perspective(45, rdr.gl.viewportWidth / rdr.gl.viewportHeight, 0.1, 100.0, rdr.pMatrix);
 
-        var lighting = false;
+        var lighting = true;
 
         rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
+
+        mat4.identity(rdr.mvMatrix);
+        // mat4.translate(rdr.mvMatrix, [0, 0, -6]);
+
+        mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.pitch), [1, 0, 0]);
+        mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.yaw), [0, 1, 0]);
+        mat4.translate(rdr.mvMatrix, [-rdr.camera.xPos, -rdr.camera.yPos, -rdr.camera.zPos]);
 
         
         if (lighting) {
@@ -526,7 +543,11 @@ function Renderer() {
 
             // point light - at centre of sun
             rdr.gl.uniform3f(rdr.shaders.program.pointLightingLocationUniform,
-                    0.0, 0.0, 0.0
+                    -rdr.camera.xPos, -rdr.camera.yPos, -rdr.camera.zPos
+                    // 0, -5, -15
+                    //50, 0, 0
+                    //0, 50, 0
+                    //0, -10, -20
                 );
 
             // point light - brighter
@@ -536,13 +557,6 @@ function Renderer() {
         }
         
 
-        mat4.identity(rdr.mvMatrix);
-        // mat4.translate(rdr.mvMatrix, [0, 0, -6]);
-
-        
-        mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.pitch), [1, 0, 0]);
-        mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.yaw), [0, 1, 0]);
-        mat4.translate(rdr.mvMatrix, [-rdr.camera.xPos, -rdr.camera.yPos, -rdr.camera.zPos]);
         
 
         rdr.drawSystem(rdr.spheres);

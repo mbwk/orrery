@@ -23,7 +23,7 @@ function degToRad(degrees) {
 function initGLSL(shaders) {
     shaders.srcs = {};
 
-    shaders.srcs.fragment = "precision mediump float;\n" +
+    shaders.srcs["per_vertex_lighting_fs"] = "precision mediump float;\n" +
 "\n" +
 "    varying vec2 vTextureCoord;\n" +
 "    varying vec3 vLightWeighting;\n" +
@@ -31,11 +31,14 @@ function initGLSL(shaders) {
 "    uniform sampler2D uSampler;\n" +
 "\n" +
 "    void main(void) {\n" +
-"        vec4 textureColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));\n" +
-"        gl_FragColor = vec4(textureColor.rgb * vLightWeighting, textureColor.a);\n" +
+"        vec4 fragmentColor;\n" +
+"        fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));\n" +
+//"        vec4 textureColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));\n" +
+"        gl_FragColor = vec4(fragmentColor.rgb * vLightWeighting, fragmentColor.a);\n" +
+//"        gl_FragColor = vec4(textureColor.rgb * vLightWeighting, textureColor.a);\n" +
 "    }\n";
 
-    shaders.srcs.vertex = "attribute vec3 aVertexPosition;\n" +
+    shaders.srcs["per_vertex_lighting_vs"] = "attribute vec3 aVertexPosition;\n" +
 "    attribute vec3 aVertexNormal;\n" +
 "    attribute vec2 aTextureCoord;\n" +
 "\n" +
@@ -47,9 +50,6 @@ function initGLSL(shaders) {
 "\n" +
 "    uniform vec3 uPointLightingLocation;\n" +
 "    uniform vec3 uPointLightingColor;\n" +
-//"\n" +
-//"    uniform vec3 uLightingDirection;\n" +
-//"    uniform vec3 uDirectionalColor;\n" +
 "\n" +
 "    uniform bool uUseLighting;\n" +
 "\n" +
@@ -72,61 +72,85 @@ function initGLSL(shaders) {
 "        }\n" +
 "    }\n";
 
+    shaders.srcs["per_fragment_lighting_fs"] = "precision mediump float;\n" +
+"\n" +
+"    varying vec2 vTextureCoord;\n" +
+"    varying vec3 vTransformedNormal;\n" +
+"    varying vec4 vPosition;\n" +
+"\n" +
+"    uniform bool uUseLighting;\n" +
+//"    uniform bool uUseTextures;\n" +
+"\n" +
+"    uniform vec3 uAmbientColor;\n" +
+"\n" +
+"    uniform vec3 uPointLightingLocation;\n" +
+"    uniform vec3 uPointLightingColor;\n" +
+"\n" +
+"    uniform sampler2D uSampler;\n" +
+"\n" +
+"    void main(void) {\n" +
+"        vec3 lightWeighting;\n" +
+"        if (!uUseLighting) {\n" +
+"            lightWeighting = vec3(1.0, 1.0, 1.0);\n" +
+"        } else {\n" +
+"            vec3 lightDirection = normalize(uPointLightingLocation - vPosition.xyz);\n" +
+"            float directionalLightWeighting = max(dot(normalize(vTransformedNormal), lightDirection), 0.0);\n" +
+"            lightWeighting = uAmbientColor + uPointLightingColor * directionalLightWeighting;\n" +
+"        }\n" +
+"\n" +
+"        vec4 fragmentColor;\n" +
+//"        if (uUseTextures) {\n" +
+"        fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));\n" +
+//"        } else {\n" +
+//"            fragmentColor = vec4(1.0, 1.0, 1.0, 1.0);\n" +
+//"        }\n" +
+"\n" +
+"        gl_FragColor = vec4(fragmentColor.rgb * lightWeighting, fragmentColor.a);\n" +
+"    }\n";
+
+    shaders.srcs["per_fragment_lighting_vs"] = "attribute vec3 aVertexPosition;\n" +
+"    attribute vec3 aVertexNormal;\n" +
+"    attribute vec2 aTextureCoord;\n" +
+"\n" +
+"    uniform mat4 uMVMatrix;\n" +
+"    uniform mat4 uPMatrix;\n" +
+"    uniform mat3 uNMatrix;\n" +
+"\n" +
+//"    uniform vec3 uAmbientColor;\n" +
+//"\n" +
+//"    uniform vec3 uPointLightingLocation;\n" +
+//"    uniform vec3 uPointLightingColor;\n" +
+//"\n" +
+//"    uniform vec3 uLightingDirection;\n" +
+//"    uniform vec3 uDirectionalColor;\n" +
+//"\n" +
+//"    uniform bool uUseLighting;\n" +
+"\n" +
+"    varying vec2 vTextureCoord;\n" +
+"    varying vec3 vTransformedNormal;\n" +
+"    varying vec4 vPosition;\n" +
+//"    varying vec3 vLightWeighting;\n" +
+"\n" +
+"    void main(void) {\n" +
+"        vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);\n" +
+"        gl_Position = uPMatrix * vPosition;\n" +
+"        vTextureCoord = aTextureCoord;\n" +
+"\n" +
+//"        if (!uUseLighting) {\n" +
+//"            vLightWeighting = vec3(1.0, 1.0, 1.0);\n" +
+//"        } else {\n" +
+//"            vec3 lightDirection = normalize(uPointLightingLocation - mvPosition.xyz);\n" +
+//"\n" +
+"        vTransformedNormal = uNMatrix * aVertexNormal;\n" +
+//"            float directionalLightWeighting = max(dot(transformedNormal, lightDirection), 0.0);\n" +
+//"            vLightWeighting = uAmbientColor + uPointLightingColor * directionalLightWeighting;\n" +
+//"        }\n" +
+"    }\n";
+
     return shaders;
 }
 
-function compileShaders(gl, shaders) {
-    shaders.objs = {};
 
-    shaders.objs.fragment = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(shaders.objs.fragment, shaders.srcs.fragment);
-    gl.compileShader(shaders.objs.fragment);
-
-    if (!gl.getShaderParameter(shaders.objs.fragment, gl.COMPILE_STATUS)) {
-        alert(gl.getShaderInfoLog(shaders.objs.fragment));
-    }
-
-    shaders.objs.vertex = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(shaders.objs.vertex, shaders.srcs.vertex);
-    gl.compileShader(shaders.objs.vertex);
-
-    if (!gl.getShaderParameter(shaders.objs.vertex, gl.COMPILE_STATUS)) {
-        alert(gl.getShaderInfoLog(shaders.objs.vertex));
-    }
-
-    return shaders;
-}
-
-function linkShaders(gl, shaders) {
-    shaders.program = gl.createProgram();
-    gl.attachShader(shaders.program, shaders.objs.vertex);
-    gl.attachShader(shaders.program, shaders.objs.fragment);
-    gl.linkProgram(shaders.program);
-
-    if (!gl.getProgramParameter(shaders.program, gl.LINK_STATUS)) {
-        alert("Failed to initialize shaders");
-    }
-
-    gl.useProgram(shaders.program);
-
-    shaders.program.vertexPositionAttribute = gl.getAttribLocation(shaders.program, "aVertexPosition");
-    gl.enableVertexAttribArray(shaders.program.vertexPositionAttribute);
-
-    shaders.program.textureCoordAttribute = gl.getAttribLocation(shaders.program, "aTextureCoord");
-    gl.enableVertexAttribArray(shaders.program.textureCoordAttribute);
-
-    shaders.program.vertexNormalAttribute = gl.getAttribLocation(shaders.program, "aVertexNormal");
-    gl.enableVertexAttribArray(shaders.program.vertexNormalAttribute);
-
-    shaders.program.pMatrixUniform = gl.getUniformLocation(shaders.program, "uPMatrix");
-    shaders.program.mvMatrixUniform = gl.getUniformLocation(shaders.program, "uMVMatrix");
-    shaders.program.nMatrixUniform = gl.getUniformLocation(shaders.program, "uNMatrix");
-    shaders.program.samplerUniform = gl.getUniformLocation(shaders.program, "uSampler");
-    shaders.program.useLightingUniform = gl.getUniformLocation(shaders.program, "uUseLighting");
-    shaders.program.ambientColorUniform = gl.getUniformLocation(shaders.program, "uAmbientColor");
-    shaders.program.pointLightingLocationUniform = gl.getUniformLocation(shaders.program, "uPointLightingLocation");
-    shaders.program.pointLightingColorUniform = gl.getUniformLocation(shaders.program, "uPointLightingColor");
-}
 
 function handleLoadedTexture(gl, texture) {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
@@ -179,8 +203,81 @@ function Renderer() {
 
     rdr.shaders = {};
     initGLSL(rdr.shaders);
-    compileShaders(rdr.gl, rdr.shaders);
-    linkShaders(rdr.gl, rdr.shaders);
+
+    rdr.loadShader = function (name, type) {
+        var shader;
+
+        if (type == "fs") {
+            shader = rdr.gl.createShader(rdr.gl.FRAGMENT_SHADER);
+        } else if (type == "vs") { // vertex shader
+            shader = rdr.gl.createShader(rdr.gl.VERTEX_SHADER);
+        } else {
+            return null;
+        }
+
+        rdr.gl.shaderSource(shader, rdr.shaders.srcs[name]);
+        rdr.gl.compileShader(shader);
+
+        if (!rdr.gl.getShaderParameter(shader, rdr.gl.COMPILE_STATUS)) {
+            alert("IN " + name + "\n" + rdr.gl.getShaderInfoLog(shader));
+            return null;
+        }
+
+        return shader;
+    };
+
+    rdr.compileShaderProgram = function(fs_name, vs_name) {
+        var fragmentShader = rdr.loadShader(fs_name, "fs");
+        var vertexShader = rdr.loadShader(vs_name, "vs");
+
+        var program = rdr.gl.createProgram();
+        rdr.gl.attachShader(program, vertexShader);
+        rdr.gl.attachShader(program, fragmentShader);
+        rdr.gl.linkProgram(program);
+
+        if (!rdr.gl.getProgramParameter(program, rdr.gl.LINK_STATUS)) {
+            alert("Failed to initialize shaders");
+        }
+
+        program.vertexPositionAttribute = rdr.gl.getAttribLocation(program, "aVertexPosition");
+        rdr.gl.enableVertexAttribArray(program.vertexPositionAttribute);
+
+        program.textureCoordAttribute = rdr.gl.getAttribLocation(program, "aTextureCoord");
+        rdr.gl.enableVertexAttribArray(program.textureCoordAttribute);
+
+        program.vertexNormalAttribute = rdr.gl.getAttribLocation(program, "aVertexNormal");
+        rdr.gl.enableVertexAttribArray(program.vertexNormalAttribute);
+
+        program.pMatrixUniform = rdr.gl.getUniformLocation(program, "uPMatrix");
+        program.mvMatrixUniform = rdr.gl.getUniformLocation(program, "uMVMatrix");
+        program.nMatrixUniform = rdr.gl.getUniformLocation(program, "uNMatrix");
+
+        program.samplerUniform = rdr.gl.getUniformLocation(program, "uSampler");
+        program.uUseTexturesUniform = rdr.gl.getUniformLocation(program, "uUseTextures");
+        program.useLightingUniform = rdr.gl.getUniformLocation(program, "uUseLighting");
+        program.ambientColorUniform = rdr.gl.getUniformLocation(program, "uAmbientColor");
+
+        program.pointLightingLocationUniform = rdr.gl.getUniformLocation(program, "uPointLightingLocation");
+        program.pointLightingColorUniform = rdr.gl.getUniformLocation(program, "uPointLightingColor");
+
+        return program;
+    };
+
+    rdr.selectProgram = function(spec) {
+        if (spec == "per_vertex") {
+            rdr.shaders.program = rdr.shaders.perVertexProgram;
+        } else if (spec == "per_fragment") {
+            rdr.shaders.program = rdr.shaders.perFragmentProgram;
+        } else {
+            rdr.shaders.program = rdr.shaders.perFragmentProgram;
+        }
+        rdr.gl.useProgram(rdr.shaders.program);
+        return rdr.shaders.program;
+    };
+
+    rdr.shaders.perVertexProgram = rdr.compileShaderProgram("per_vertex_lighting_fs", "per_vertex_lighting_vs");
+    rdr.shaders.perFragmentProgram = rdr.compileShaderProgram("per_fragment_lighting_fs", "per_fragment_lighting_vs");
+    rdr.shaders.program = rdr.selectProgram("per_fragment");
 
     rdr.textures = {};
     initTextures(rdr.gl, rdr.textures);

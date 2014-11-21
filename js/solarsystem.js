@@ -34,7 +34,13 @@ function SolarSystem() {
                 [new Body("Moon", "moon.gif", 0.3, 1, 60, 5, 10, null)]),
             new Body("Mars",    "marsmap1k.jpg",    1.2,    1,  6, 60,      90,
                 null),
-            new Body("Jupiter", "jupitermap.jpg",   4,      3,  6, 90,      0,
+            new Body("Jupiter", "jupitermap.jpg",   4,      3,  7, 90,      0,
+                null),
+            new Body("Saturn", "saturnmap.jpg",     3.5,    4,  8, 100,     120,
+                null),
+            new Body("Uranus", "uranusmap.jpg",     2.8,    8,  9, 110,     160,
+                null),
+            new Body("Neptune", "neptunemap.jpg",   2.8,    8, 10, 120,     220,
                 null)
         ])
     ];

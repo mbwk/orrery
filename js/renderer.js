@@ -126,8 +126,6 @@ function linkShaders(gl, shaders) {
     shaders.program.ambientColorUniform = gl.getUniformLocation(shaders.program, "uAmbientColor");
     shaders.program.pointLightingLocationUniform = gl.getUniformLocation(shaders.program, "uPointLightingLocation");
     shaders.program.pointLightingColorUniform = gl.getUniformLocation(shaders.program, "uPointLightingColor");
-
-    console.log("shaders initialized");
 }
 
 function handleLoadedTexture(gl, texture) {
@@ -168,21 +166,9 @@ function initTextures(gl, textures) {
 }
 
 function initCamera(camera) {
-    camera.MAX_TURNSPEED = 0.05;
-    camera.MAX_MOVESPEED = 0.006;
-
-    camera.pitch = 0;
-    camera.pitchRate = 0;
-
-    camera.yaw = 0;
-    camera.yawRate = 0;
-
-    camera.xPos = 0.0;
-    camera.yPos = 0.0;
-    camera.zPos = 10.0;
-
-    camera.speed = 0;
-    camera.strafe = 0;
+    camera.zoom = 6;
+    camera.rotationMatrix = mat4.create();
+    mat4.identity(camera.rotationMatrix);
 }
 
 function Renderer() {
@@ -210,95 +196,58 @@ function Renderer() {
 
     rdr.camera = {};
     rdr.controls = {};
-    rdr.controls.currentlyPressedKeys = {};
+    rdr.controls.mouseDown = false;
+    rdr.controls.lastMouseX = null;
+    rdr.controls.lastMouseY = null;
     initCamera(rdr.camera);
 
-    rdr.controls.handleKeyDown = function (event) {
-        rdr.controls.currentlyPressedKeys[event.keyCode] = true;
+    rdr.controls.handleMouseDown = function (event) {
+        rdr.controls.mouseDown = true;
+        rdr.controls.lastMouseX = event.clientX;
+        rdr.controls.lastMouseY = event.clientY;
     };
 
-    rdr.controls.handleKeyUp = function (event) {
-        rdr.controls.currentlyPressedKeys[event.keyCode] = false;
+    rdr.controls.handleMouseUp = function (event) {
+        rdr.controls.mouseDown = false;;
     };
 
-    rdr.controlCamera = function () {
-        // pitch controls
-        if (rdr.controls.currentlyPressedKeys[33]) { // Page Up
-            rdr.camera.pitchRate = rdr.camera.MAX_TURNSPEED;
-        } else if (rdr.controls.currentlyPressedKeys[34]) { // Page Down
-            rdr.camera.pitchRate = -1 * rdr.camera.MAX_TURNSPEED;
-        } else {
-            rdr.camera.pitchRate = 0;
+    rdr.controls.handleMouseMove = function (event) {
+        if (!rdr.controls.mouseDown) {
+            return;
         }
+        var newX = event.clientX;
+        var newY = event.clientY;
 
-        // yaw controls
-        if (rdr.controls.currentlyPressedKeys[81]) {
-            rdr.camera.yawRate = rdr.camera.MAX_TURNSPEED;
-        } else if (rdr.controls.currentlyPressedKeys[69]) {
-            rdr.camera.yawRate = -1 * rdr.camera.MAX_TURNSPEED;
-        } else {
-            rdr.camera.yawRate = 0;
-        }
+        var newRotationMatrix = mat4.create();
+        mat4.identity(newRotationMatrix);
 
-        // forward and backward movement
-        if (rdr.controls.currentlyPressedKeys[38] || rdr.controls.currentlyPressedKeys[87]) { // Up arrow or 'W' keys
-            if (rdr.camera.speed < rdr.camera.MAX_MOVESPEED) {
-                rdr.camera.speed += 0.001;
-            }
-        } else if (rdr.controls.currentlyPressedKeys[40] || rdr.controls.currentlyPressedKeys[83]) { // Down arrow or 'S' keys
-            if (rdr.camera.speed > -1 * rdr.camera.MAX_MOVESPEED) {
-                rdr.camera.speed -= 0.001;
-            }
-        } else {
-            if (rdr.camera.speed > 0) {
-                rdr.camera.speed -= 0.001;
-            } else if (rdr.camera.speed < 0) {
-                rdr.camera.speed += 0.001;
-            } else if (rdr.camera.speed < 0.001 && rdr.camera.speed > -0.001) {
-                rdr.camera.speed = 0;
-            }
-        }
+        var deltaX = newX - rdr.controls.lastMouseX;
+        mat4.rotate(newRotationMatrix, degToRad(deltaX / 10), [0, 1, 0]);
 
-        // strafe movement
-        if (rdr.controls.currentlyPressedKeys[37] || rdr.controls.currentlyPressedKeys[65]) { // Left arrow or 'A' keys
-            if (rdr.camera.strafe < rdr.camera.MAX_MOVESPEED) {
-                rdr.camera.strafe += 0.001;
-            }
-        } else if (rdr.controls.currentlyPressedKeys[39] || rdr.controls.currentlyPressedKeys[68]) { // Right arrow or 'D' keys
-            if (rdr.camera.strafe > -1 * rdr.camera.MAX_MOVESPEED) {
-                rdr.camera.strafe -= 0.001;
-            }
-        } else {
-            if (rdr.camera.strafe > 0) {
-                rdr.camera.strafe -= 0.001;
-            } else if (rdr.camera.strafe < 0) {
-                rdr.camera.strafe += 0.001;
-            } else if (rdr.camera.strafe < 0.001 && rdr.camera.strafe > -0.001) {
-                rdr.camera.strafe = 0;
-            }
-        }
+        var deltaY = newY - rdr.controls.lastMouseY;
+        mat4.rotate(newRotationMatrix, degToRad(deltaY / 10), [1, 0, 0]);
+
+        mat4.multiply(newRotationMatrix, rdr.camera.rotationMatrix, rdr.camera.rotationMatrix);
+
+        rdr.controls.lastMouseX = newX;
+        rdr.controls.lastMouseY = newY;
     };
 
-    rdr.updateCamera = function (elapsed) {
-        if (rdr.camera.speed != 0 || rdr.camera.strafe != 0) {
-            var pitchMult = (90 - Math.abs(rdr.camera.pitch)) / 90;
+    rdr.controls.handleMouseWheel = function (event) {
+        event.preventDefault();
 
-            rdr.camera.xPos -= Math.sin(degToRad(rdr.camera.yaw)) * (rdr.camera.speed * pitchMult) * elapsed;
-            rdr.camera.zPos -= Math.cos(degToRad(rdr.camera.yaw)) * (rdr.camera.speed * pitchMult) * elapsed;
+        var delta = 0;
+        if (event.wheelDelta) {
+            delta = event.wheelDelta;
+        };
+        console.log(delta);
 
-            rdr.camera.xPos -= Math.sin(degToRad(rdr.camera.yaw + 90)) * rdr.camera.strafe * elapsed;
-            rdr.camera.zPos -= Math.cos(degToRad(rdr.camera.yaw + 90)) * rdr.camera.strafe * elapsed;
+        rdr.camera.zoom -= delta / 1000;
 
-            rdr.camera.yPos += Math.sin(degToRad(rdr.camera.pitch)) * rdr.camera.speed * elapsed;
-        }
-
-        rdr.camera.yaw += rdr.camera.yawRate * elapsed;
-        rdr.camera.pitch += rdr.camera.pitchRate * elapsed;
-
-        if (rdr.camera.pitch > 89.0) {
-            rdr.camera.pitch = 89.0;
-        } else if (rdr.camera.pitch < -89.0) {
-            rdr.camera.pitch = -89.0;
+        if (rdr.camera.zoom < 1) {
+            rdr.camera.zoom = 1;
+        } else if (rdr.camera.zoom > 16) {
+            rdr.camera.zoom = 16;
         }
     };
 
@@ -306,7 +255,7 @@ function Renderer() {
     rdr.mvMatrix = mat4.create();
     rdr.mvMatrixStack = [];
     rdr.pMatrix = mat4.create();
-    
+
     rdr.mvPushMatrix = function () {
         var copy = mat4.create();
         mat4.set(rdr.mvMatrix, copy);
@@ -500,41 +449,30 @@ function Renderer() {
         rdr.mvPopMatrix();
     };
 
-    rdr.calculateRelativeSunXYZ = function () {
-        var camx = rdr.camera.xPos;
-        var camy = rdr.camera.yPos;
-        var camz = rdr.camera.zPos;
-        var camp = rdr.camera.pitch;
-        var camy = rdr.camera.yaw;
-
-        var x = 0;
-        var y = 0;
-        var z = 0;
-    };
-    
-    
-
     rdr.drawScene = function () {
         rdr.gl.viewportWidth = rdr.canvas.width; //= window.innerWidth;
-        rdr.gl.viewportHeight = rdr.canvas.width; //= window.innerHeight;
+        rdr.gl.viewportHeight = rdr.canvas.height; //= window.innerHeight;
 
         rdr.gl.viewport(0, 0, rdr.gl.viewportWidth, rdr.gl.viewportHeight);
         rdr.gl.clear(rdr.gl.COLOR_BUFFER_BIT | rdr.gl.DEPTH_BUFFER_BIT);
 
         mat4.perspective(45, rdr.gl.viewportWidth / rdr.gl.viewportHeight, 0.1, 100.0, rdr.pMatrix);
+        mat4.identity(rdr.mvMatrix);
+
+        // old, buggy free-roam camera
+        // mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.pitch), [1, 0, 0]);
+        // mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.yaw), [0, 1, 0]);
+        // mat4.translate(rdr.mvMatrix, [-rdr.camera.xPos, -rdr.camera.yPos, -rdr.camera.zPos]);
+
+        // new, simple rotation matrix camera
+        mat4.translate(rdr.mvMatrix, [0, 0, -rdr.camera.zoom]);
+        mat4.multiply(rdr.mvMatrix, rdr.camera.rotationMatrix);
 
         var lighting = true;
 
         rdr.gl.uniform1i(rdr.shaders.program.useLightingUniform, lighting);
 
-        mat4.identity(rdr.mvMatrix);
-        // mat4.translate(rdr.mvMatrix, [0, 0, -6]);
 
-        mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.pitch), [1, 0, 0]);
-        mat4.rotate(rdr.mvMatrix, degToRad(-rdr.camera.yaw), [0, 1, 0]);
-        mat4.translate(rdr.mvMatrix, [-rdr.camera.xPos, -rdr.camera.yPos, -rdr.camera.zPos]);
-
-        
         if (lighting) {
             // ambient light - low
             rdr.gl.uniform3f(rdr.shaders.program.ambientColorUniform,
@@ -543,11 +481,7 @@ function Renderer() {
 
             // point light - at centre of sun
             rdr.gl.uniform3f(rdr.shaders.program.pointLightingLocationUniform,
-                    -rdr.camera.xPos, -rdr.camera.yPos, -rdr.camera.zPos
-                    // 0, -5, -15
-                    //50, 0, 0
-                    //0, 50, 0
-                    //0, -10, -20
+                    0, 0, -rdr.camera.zoom
                 );
 
             // point light - brighter
@@ -555,9 +489,6 @@ function Renderer() {
                     0.9, 0.9, 0.9
                 );
         }
-        
-
-        
 
         rdr.drawSystem(rdr.spheres);
     };
@@ -574,24 +505,19 @@ function Renderer() {
         }
     };
 
-    rdr.updateScene = function (elapsed) {
-        rdr.controlCamera();
-        rdr.updateCamera(elapsed);
-        rdr.animateSystem(elapsed, rdr.spheres);
-    };
-
     rdr.render = function (elapsed) {
         rdr.drawScene();
-        rdr.updateScene(elapsed);
+        rdr.animateSystem(elapsed, rdr.spheres);
     };
-
 
     rdr.gl.clearColor(0.0, 0.0, 0.0, 1.0);
     rdr.gl.enable(rdr.gl.DEPTH_TEST);
 
-    document.onkeydown = rdr.controls.handleKeyDown;
-    document.onkeyup = rdr.controls.handleKeyUp;
-
+    rdr.canvas.onmousedown = rdr.controls.handleMouseDown;
+    document.onmouseup = rdr.controls.handleMouseUp;
+    document.onmousemove = rdr.controls.handleMouseMove;
+    rdr.canvas.onmousewheel = rdr.controls.handleMouseWheel;
+    
     return rdr;
 }
 
